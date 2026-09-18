@@ -1,0 +1,7 @@
+requests>=2.31.0
+urllib3>=2.0.0
+PySocks>=1.7.1
+PySide6>=6.5.0
+beautifulsoup4>=4.12.0
+ds_store>=1.3.3
+mac_alias==2.2.3  # DMG 背景图 Alias 结构依赖 2.2.3(414B, patch 45/136), 勿升勿降

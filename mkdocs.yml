@@ -1,0 +1,38 @@
+site_name: 个人工具
+site_url: https://itwuge.github.io/wuge_tools/
+site_description: 基于 PySide6 的个人工具，支持签到操作、文件传输下载、邮件通知、GitHub 自更新
+site_author: 个人
+docs_dir: docs
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: slate
+      primary: blue grey
+      accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+
+nav:
+  - 首页: index.md
+  - 快速开始: quickstart.md
+  - 配置说明: config.md
+  - 自更新: update.md
