@@ -1,0 +1,123 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller 打包配置 - 个人工具
+仅收集项目实际使用的 Qt 模块(QtWidgets/QtCore/QtGui),排除 QML/Qt3D/蓝牙等
+"""
+
+import sys  # 按平台选择图标格式(darwin=.icns, 其他=.ico)
+import os  # 路径拼接:定位 Qt 中文翻译文件
+from PySide6.QtCore import QLibraryInfo  # Qt 库信息:获取翻译目录
+_QT_TRANS_QM = os.path.join(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath), "qt_zh_CN.qm")  # Qt 内置中文翻译文件路径
+
+block_cipher = None
+
+_APP_ICON = "app_icon.icns" if sys.platform == "darwin" else "app_icon.ico"  # macOS需要icns图标
+
+a = Analysis(
+    ['main.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('app_icon.png', '.'),
+        ('THIRD_PARTY_NOTICES.md', '.'),  # 第三方组件许可证声明(LGPL合规)
+        (_QT_TRANS_QM, 'PySide6/Qt/translations'),  # Qt 中文翻译:文件对话框显示中文
+    ],
+    hiddenimports=[
+        'PySide6.QtWidgets',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtNetwork',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        # 排除未使用的 Qt 模块,减小体积
+        'PySide6.QtQml',
+        'PySide6.QtQuick',
+        'PySide6.QtQuick3D',
+        'PySide6.Qt3DCore',
+        'PySide6.Qt3DRender',
+        'PySide6.Qt3DAnimation',
+        'PySide6.Qt3DExtras',
+        'PySide6.Qt3DInput',
+        'PySide6.Qt3DLogic',
+        'PySide6.QtBluetooth',
+        'PySide6.QtCharts',
+        'PySide6.QtConcurrent',
+        'PySide6.QtDataVisualization',
+        'PySide6.QtDBus',
+        'PySide6.QtDesigner',
+        'PySide6.QtGraphs',
+        'PySide6.QtHelp',
+        'PySide6.QtHttpServer',
+        'PySide6.QtLocation',
+        'PySide6.QtMultimedia',
+        'PySide6.QtMultimediaWidgets',
+        'PySide6.QtNetworkAuth',
+        'PySide6.QtNfc',
+        'PySide6.QtOpenGL',
+        'PySide6.QtOpenGLWidgets',
+        'PySide6.QtPdf',
+        'PySide6.QtPdfWidgets',
+        'PySide6.QtPositioning',
+        'PySide6.QtPrintSupport',
+        'PySide6.QtQml',
+        'PySide6.QtQuick',
+        'PySide6.QtQuickWidgets',
+        'PySide6.QtRemoteObjects',
+        'PySide6.QtScxml',
+        'PySide6.QtSensors',
+        'PySide6.QtSerialPort',
+        'PySide6.QtSpatialAudio',
+        'PySide6.QtSql',
+        'PySide6.QtStateMachine',
+        'PySide6.QtSvg',
+        'PySide6.QtSvgWidgets',
+        'PySide6.QtTest',
+        'PySide6.QtTextToSpeech',
+        'PySide6.QtUiTools',
+        'PySide6.QtWebChannel',
+        'PySide6.QtWebEngineCore',
+        'PySide6.QtWebEngineQuick',
+        'PySide6.QtWebEngineWidgets',
+        'PySide6.QtWebSockets',
+        'PySide6.QtWebView',
+        'PySide6.QtXml',
+        'PySide6.QtXmlPatterns',
+        # 排除其他无关模块
+        'tkinter',
+        'unittest',
+        'pydoc',
+        'doctest',
+        'pdb',
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='个人小工具',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=_APP_ICON,
+)

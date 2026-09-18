@@ -1,0 +1,241 @@
+name: 多平台构建
+permissions:
+  contents: write
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest, macos-15-intel]
+        include:
+          - os: windows-latest
+            os_name: Windows
+            artifact_name: wuge_tools-Windows
+            spec_file: wuge_tools.spec
+          - os: ubuntu-latest
+            os_name: Linux
+            artifact_name: wuge_tools-Linux
+            spec_file: wuge_tools.spec
+          - os: macos-latest
+            os_name: macOS-arm64
+            artifact_name: wuge_tools-macOS-arm64
+            spec_file: wuge_tools.spec
+          - os: macos-15-intel
+            os_name: macOS-x86_64
+            artifact_name: wuge_tools-macOS-x86_64
+            spec_file: wuge_tools.spec
+
+    runs-on: ${{ matrix.os }}
+    env:
+      OS_NAME: ${{ matrix.os_name }}
+      # 强制 Python IO 使用 UTF-8 编码,避免 Windows Runner cp1252 控制台无法编码中文导致 UnicodeEncodeError
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      # DMG 卷标名版本号(规避 Finder 同名卷布局缓存导致背景图不显示)
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # ds_store/mac_alias 已写入 requirements.txt, macOS DMG 豆包式布局直接依赖,无需平台分支
+          pip install pyinstaller
+
+      - name: Linux 安装系统依赖
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-xinerama0 \
+            libxcb-cursor0 \
+            libxkbcommon-x11-0 \
+            libgl1 \
+            libgl1-mesa-dri \
+            libegl1 \
+            libdbus-1-3 \
+            libfontconfig1 \
+            libxrender1 \
+            libxi6 \
+            libxrandr2 \
+            libxss1 \
+            libxcursor1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxtst6 \
+            libglib2.0-0
+
+      - name: 构建主程序 (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --noconfirm --clean wuge_tools.spec
+
+      - name: 构建更新助手 (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --noconfirm --clean update.spec
+
+      - name: 构建主程序 (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          # macOS 需要 .icns 图标(Linux 无需图标参数)
+          ICON_ARGS=""
+          if [ "$RUNNER_OS" = "macOS" ]; then ICON_ARGS="--icon app_icon.icns"; fi
+          QT_TRANS=$(python -c "from PySide6.QtCore import QLibraryInfo; import os; print(os.path.join(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath), 'qt_zh_CN.qm'))")
+          pyinstaller --noconfirm --clean \
+            --onefile \
+            --windowed \
+            --name 个人小工具 \
+            --add-data "app_icon.png:." \
+            --add-data "$QT_TRANS:PySide6/Qt/translations" \
+            --hidden-import PySide6.QtWidgets \
+            --hidden-import PySide6.QtCore \
+            --hidden-import PySide6.QtGui \
+            --hidden-import PySide6.QtNetwork \
+            --exclude-module PySide6.QtQml \
+            --exclude-module PySide6.QtQuick \
+            --exclude-module PySide6.QtQuick3D \
+            --exclude-module PySide6.Qt3DCore \
+            --exclude-module PySide6.Qt3DRender \
+            --exclude-module PySide6.QtBluetooth \
+            --exclude-module PySide6.QtCharts \
+            --exclude-module PySide6.QtDataVisualization \
+            --exclude-module PySide6.QtMultimedia \
+            --exclude-module PySide6.QtMultimediaWidgets \
+            --exclude-module PySide6.QtNetworkAuth \
+            --exclude-module PySide6.QtPositioning \
+            --exclude-module PySide6.QtPrintSupport \
+            --exclude-module PySide6.QtSensors \
+            --exclude-module PySide6.QtSerialPort \
+            --exclude-module PySide6.QtSql \
+            --exclude-module PySide6.QtSvg \
+            --exclude-module PySide6.QtTest \
+            --exclude-module PySide6.QtWebChannel \
+            --exclude-module PySide6.QtWebEngineCore \
+            --exclude-module PySide6.QtWebEngineWidgets \
+            --exclude-module PySide6.QtWebSockets \
+            --exclude-module tkinter \
+            --exclude-module unittest \
+            $ICON_ARGS \
+            main.py
+
+      - name: 构建更新助手 (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          # macOS 需要 .icns 图标(Linux 无需图标参数)
+          ICON_ARGS=""
+          if [ "$RUNNER_OS" = "macOS" ]; then ICON_ARGS="--icon app_icon.icns"; fi
+          QT_TRANS=$(python -c "from PySide6.QtCore import QLibraryInfo; import os; print(os.path.join(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath), 'qt_zh_CN.qm'))")
+          pyinstaller --noconfirm --clean \
+            --windowed \
+            --noupx \
+            --name update \
+            --add-data "app_icon.png:." \
+            --add-data "$QT_TRANS:PySide6/Qt/translations" \
+            --hidden-import PySide6.QtWidgets \
+            --hidden-import PySide6.QtCore \
+            --hidden-import PySide6.QtGui \
+            --hidden-import PySide6.QtNetwork \
+            --exclude-module PySide6.QtQml \
+            --exclude-module PySide6.QtQuick \
+            --exclude-module PySide6.QtMultimedia \
+            --exclude-module PySide6.QtWebEngineCore \
+            --exclude-module PySide6.QtWebEngineWidgets \
+            --exclude-module tkinter \
+            --exclude-module unittest \
+            $ICON_ARGS \
+            updater_app/updater_main.py
+
+      - name: 打包为 ZIP (Windows,程序根平铺)
+        if: matrix.os == 'windows-latest'
+        run: python build_zip.py
+
+      - name: 编译安装程序 (Windows,Inno Setup)
+        if: matrix.os == 'windows-latest'
+        run: |
+          # 静默安装 Inno Setup 6(choco 已在 Windows runner 预装)
+          choco install innosetup -y --no-progress
+          # 版本号从 git tag 提取(去掉 v 前缀);非 tag 构建用占位 0.0.0
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $tag = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $tag = '0.0.0'
+          }
+          # 安装版标记: 构建产物目录生成 installed.flag,由安装程序装到程序目录
+          # (注意: 不放项目根,否则本地源码运行会被误判为安装版)
+          New-Item -ItemType File -Path dist\installed.flag -Force | Out-Null
+          # 编译安装包: 产物 wuge_tools-Windows-setup.exe(自带 app_icon.ico 图标)
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=$tag installer.iss
+
+      - name: 打包为 tar.gz (Linux,程序根平铺)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Linux: 单文件可执行程序
+          chmod +x dist/个人小工具
+          chmod +x dist/update/update
+          python build_tar.py
+
+      - name: 打包为 DMG (macOS,原生磁盘镜像)
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          # macOS: --windowed 生成 .app 包,可执行文件在 Contents/MacOS/ 下
+          chmod +x "dist/个人小工具.app/Contents/MacOS/个人小工具"
+          chmod +x "dist/update.app/Contents/MacOS/update"
+          python build_dmg.py
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.os == 'windows-latest' && format('wuge_tools-{0}.zip', matrix.os_name) || (startsWith(matrix.os, 'macos-') && format('wuge_tools-{0}.dmg', matrix.os_name) || format('wuge_tools-{0}.tar.gz', matrix.os_name)) }}
+            ${{ matrix.os == 'windows-latest' && 'wuge_tools-Windows-setup.exe' || '' }}
+          retention-days: 30
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载所有产物
+        uses: actions/download-artifact@v4
+
+      - name: 创建 Release 并上传构建产物
+        uses: softprops/action-gh-release@v3
+        with:
+          name: wuge_tools ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            # wuge_tools ${{ github.ref_name }}
+            | 项目 | 参数 |
+            |------|------|
+            | 版本 | ${{ github.ref_name }} |
+            | 构建时间 | ${{ github.event.head_commit.timestamp }} |
+            | Git SHA | ${{ github.sha }} |
+            > Windows: 安装版 setup.exe(推荐,自动更新) + 绿色版 zip;Linux/macOS 下载对应压缩包即可运行
+          files: |
+            wuge_tools-Windows/wuge_tools-Windows.zip
+            wuge_tools-Windows/wuge_tools-Windows-setup.exe
+            wuge_tools-Linux/wuge_tools-Linux.tar.gz
+            wuge_tools-macOS-arm64/wuge_tools-macOS-arm64.dmg
+            wuge_tools-macOS-x86_64/wuge_tools-macOS-x86_64.dmg
+          fail_on_unmatched_files: true
